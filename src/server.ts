@@ -466,6 +466,126 @@ app.get('/mcp/direct', (req: Request, res: Response) => {
   });
 });
 
+// Add no-SSE endpoint for MCP
+app.post('/no-sse', (req: Request, res: Response) => {
+  console.log('Received POST request to no-SSE endpoint:', JSON.stringify(req.body, null, 2));
+  
+  // Validate JSON-RPC 2.0 request
+  if (!req.body.jsonrpc || req.body.jsonrpc !== '2.0') {
+    return res.json({
+      jsonrpc: '2.0',
+      error: { code: -32600, message: 'Invalid request' },
+      id: req.body.id || null
+    });
+  }
+  
+  const { method, params, id } = req.body;
+  
+  // Handle connection request
+  if (method === 'mcp.connect') {
+    return res.json({
+      jsonrpc: '2.0',
+      result: { streaming: false, version: '1.0' },
+      id
+    });
+  }
+  
+  // Handle tool discovery
+  if (method === 'mcp.discover_tools') {
+    // Use the same hardcoded tool list we use in other endpoints
+    const tools = [
+      {
+        name: 'create_incident',
+        description: 'Create a new status page incident',
+        parameters: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'The name of the incident' },
+            status: { type: 'string', description: 'Status (investigating, identified, monitoring, resolved)' },
+            impact: { type: 'string', description: 'Impact level (critical, major, minor, maintenance)' },
+            message: { type: 'string', description: 'The incident message/details' }
+          },
+          required: ['name', 'status', 'impact', 'message']
+        }
+      },
+      {
+        name: 'update_incident',
+        description: 'Update an existing status page incident',
+        parameters: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'The ID of the incident to update' },
+            status: { type: 'string', description: 'The new status of the incident' },
+            message: { type: 'string', description: 'The update message' }
+          },
+          required: ['id']
+        }
+      },
+      {
+        name: 'list_incidents',
+        description: 'List status page incidents',
+        parameters: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', description: 'Filter by status' },
+            limit: { type: 'number', description: 'Maximum number of incidents to return' }
+          }
+        }
+      }
+    ];
+    
+    return res.json({
+      jsonrpc: '2.0',
+      result: {
+        tools: tools
+      },
+      id
+    });
+  }
+  
+  // Handle tool call
+  if (method === 'mcp.call_tool') {
+    if (!params?.name) {
+      return res.json({
+        jsonrpc: '2.0',
+        error: { code: -32602, message: 'Missing tool name' },
+        id
+      });
+    }
+    
+    const toolName = params.name;
+    const toolParams = params.params || {};
+    
+    // Update config from headers
+    updateConfigFromHeaders(req.headers);
+    
+    // Return a simple successful response
+    return res.json({
+      jsonrpc: '2.0',
+      result: {
+        content: [
+          {
+            type: 'text',
+            text: `Executed ${toolName} with parameters: ${JSON.stringify(toolParams)}`
+          }
+        ]
+      },
+      id
+    });
+  }
+  
+  // Unknown method
+  return res.json({
+    jsonrpc: '2.0',
+    error: {
+      code: -32601,
+      message: 'Method not found',
+      data: `The requested method '${method}' is not supported`
+    },
+    id
+  });
+});
+
 // Start the Express server
 async function startServer() {
   try {
