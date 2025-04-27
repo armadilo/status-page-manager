@@ -255,6 +255,105 @@ app.get('/mcp/metadata', (req: Request, res: Response) => {
   });
 });
 
+// Add direct tools endpoint for testing
+app.post('/mcp/direct', (req: Request, res: Response) => {
+  console.log('Received direct tools request');
+  
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-statuspage-api-key, x-statuspage-page-id');
+  
+  // Check if it's a discover tools request
+  if (req.body.method === "mcp.discover_tools") {
+    return res.json({
+      jsonrpc: "2.0",
+      result: {
+        tools: [
+          {
+            name: "create-incident",
+            description: "Create a new status page incident",
+            parameters: {
+              type: "object",
+              properties: {
+                name: { type: "string", description: "The name of the incident" },
+                status: { type: "string", description: "The status of the incident (investigating, identified, monitoring, resolved)" },
+                impact: { type: "string", description: "The impact of the incident (none, minor, major, critical)" },
+                message: { type: "string", description: "The incident message" }
+              },
+              required: ["name", "status", "impact", "message"]
+            }
+          },
+          {
+            name: "update-incident",
+            description: "Update an existing status page incident",
+            parameters: {
+              type: "object",
+              properties: {
+                id: { type: "string", description: "The ID of the incident to update" },
+                status: { type: "string", description: "The new status of the incident" },
+                message: { type: "string", description: "The update message" }
+              },
+              required: ["id"]
+            }
+          },
+          {
+            name: "list-incidents",
+            description: "List status page incidents",
+            parameters: {
+              type: "object",
+              properties: {
+                status: { type: "string", description: "Filter by status" },
+                limit: { type: "number", description: "Maximum number of incidents to return" }
+              }
+            }
+          }
+        ]
+      },
+      id: req.body.id || null
+    });
+  }
+  
+  // Check if it's a call tool request
+  if (req.body.method === "mcp.call_tool") {
+    return res.json({
+      jsonrpc: "2.0",
+      result: {
+        content: [
+          {
+            type: "text",
+            text: "Tool called successfully! This is a test response."
+          }
+        ]
+      },
+      id: req.body.id || null
+    });
+  }
+  
+  // Handle mcp.connect
+  if (req.body.method === "mcp.connect") {
+    return res.json({
+      jsonrpc: "2.0",
+      result: {
+        streaming: false,
+        version: "1.0"
+      },
+      id: req.body.id || null
+    });
+  }
+  
+  // Handle other methods
+  return res.json({
+    jsonrpc: "2.0",
+    error: {
+      code: -32601,
+      message: "Method not found",
+      data: `Method ${req.body.method} not supported`
+    },
+    id: req.body.id || null
+  });
+});
+
 // Start the Express server
 async function startServer() {
   try {
