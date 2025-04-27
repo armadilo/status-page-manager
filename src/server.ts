@@ -65,32 +65,53 @@ app.options('*', (req: Request, res: Response) => {
 app.get('/mcp', (req: Request, res: Response) => {
   console.log('Received SSE connection request from Cursor');
   
-  // Explicitly disable any middleware that might interfere with the response
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('X-Accel-Buffering', 'no'); // Disable Nginx buffering if present
+  // Set headers exactly as expected for SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'X-Accel-Buffering': 'no'
+  });
   
-  // Flush headers immediately
-  res.flushHeaders();
+  // Create a unique ID for this connection
+  const connectionId = Date.now().toString();
+  console.log(`SSE connection established with ID ${connectionId}`);
   
-  // Send an initial comment to establish the connection
-  res.write(':\n\n');
+  // Send a proper event message for connection established
+  const connectEvent = {
+    jsonrpc: "2.0",
+    method: "mcp.connection_established", 
+    params: { connectionId }
+  };
   
-  // Keep connection open with regular pings
+  // Format as a proper SSE event
+  res.write(`event: message\ndata: ${JSON.stringify(connectEvent)}\n\n`);
+  
+  // Keep connection open with regular pings (using proper SSE format)
   const pingInterval = setInterval(() => {
     try {
+      // Send a simple comment line for heartbeat
       res.write(':\n\n');
+      
+      // Every 4 pings, send a proper ping event
+      if (Math.random() < 0.25) {
+        const pingEvent = {
+          jsonrpc: "2.0",
+          method: "mcp.ping",
+          params: { timestamp: new Date().toISOString() }
+        };
+        res.write(`event: message\ndata: ${JSON.stringify(pingEvent)}\n\n`);
+      }
     } catch (error) {
       console.error('Error sending ping:', error);
       clearInterval(pingInterval);
     }
-  }, 10000);
+  }, 5000);
   
   // Handle client disconnect
   req.on('close', () => {
-    console.log('SSE connection closed by client');
+    console.log(`SSE connection ${connectionId} closed by client`);
     clearInterval(pingInterval);
   });
 });
@@ -358,32 +379,53 @@ app.post('/mcp/direct', (req: Request, res: Response) => {
 app.get('/mcp/direct', (req: Request, res: Response) => {
   console.log('Received GET request for direct SSE connection');
   
-  // Set headers for SSE
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('X-Accel-Buffering', 'no'); // Disable Nginx buffering if present
+  // Set headers exactly as expected for SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'X-Accel-Buffering': 'no'
+  });
   
-  // Flush headers immediately
-  res.flushHeaders();
+  // Create a unique ID for this connection
+  const connectionId = Date.now().toString();
+  console.log(`Direct SSE connection established with ID ${connectionId}`);
   
-  // Send an initial comment to establish the connection
-  res.write(':\n\n');
+  // Send a proper event message for connection established
+  const connectEvent = {
+    jsonrpc: "2.0",
+    method: "mcp.connection_established", 
+    params: { connectionId }
+  };
   
-  // Keep connection open with regular pings
+  // Format as a proper SSE event
+  res.write(`event: message\ndata: ${JSON.stringify(connectEvent)}\n\n`);
+  
+  // Keep connection open with regular pings (using proper SSE format)
   const pingInterval = setInterval(() => {
     try {
+      // Send a simple comment line for heartbeat
       res.write(':\n\n');
+      
+      // Every 4 pings, send a proper ping event
+      if (Math.random() < 0.25) {
+        const pingEvent = {
+          jsonrpc: "2.0",
+          method: "mcp.ping",
+          params: { timestamp: new Date().toISOString() }
+        };
+        res.write(`event: message\ndata: ${JSON.stringify(pingEvent)}\n\n`);
+      }
     } catch (error) {
       console.error('Error sending ping:', error);
       clearInterval(pingInterval);
     }
-  }, 10000);
+  }, 5000);
   
   // Handle client disconnect
   req.on('close', () => {
-    console.log('Direct SSE connection closed by client');
+    console.log(`Direct SSE connection ${connectionId} closed by client`);
     clearInterval(pingInterval);
   });
 });
