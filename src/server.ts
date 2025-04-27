@@ -63,55 +63,35 @@ app.options('*', (req: Request, res: Response) => {
 
 // Add SSE support for Cursor MCP connection
 app.get('/mcp', (req: Request, res: Response) => {
-  console.log('Received SSE connection request from Cursor');
+  console.log('Received SSE connection request from Cursor with headers:', req.headers);
   
-  // Set headers exactly as expected for SSE
+  // Match exactly what Cursor expects for SSE headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-transform',
+    'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
     'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-statuspage-api-key, x-statuspage-page-id',
     'X-Accel-Buffering': 'no'
   });
   
-  // Create a unique ID for this connection
-  const connectionId = Date.now().toString();
-  console.log(`SSE connection established with ID ${connectionId}`);
+  // The SSE specification requires an initial comment to be sent
+  res.write(':\n\n');
   
-  // Send a proper event message for connection established
-  const connectEvent = {
-    jsonrpc: "2.0",
-    method: "mcp.connection_established", 
-    params: { connectionId }
-  };
-  
-  // Format as a proper SSE event
-  res.write(`event: message\ndata: ${JSON.stringify(connectEvent)}\n\n`);
-  
-  // Keep connection open with regular pings (using proper SSE format)
+  // Keep connection alive with regular pings
   const pingInterval = setInterval(() => {
     try {
-      // Send a simple comment line for heartbeat
+      // Just send a comment line for heartbeat
       res.write(':\n\n');
-      
-      // Every 4 pings, send a proper ping event
-      if (Math.random() < 0.25) {
-        const pingEvent = {
-          jsonrpc: "2.0",
-          method: "mcp.ping",
-          params: { timestamp: new Date().toISOString() }
-        };
-        res.write(`event: message\ndata: ${JSON.stringify(pingEvent)}\n\n`);
-      }
     } catch (error) {
       console.error('Error sending ping:', error);
       clearInterval(pingInterval);
     }
-  }, 5000);
+  }, 15000);
   
-  // Handle client disconnect
+  // Clean up when client disconnects
   req.on('close', () => {
-    console.log(`SSE connection ${connectionId} closed by client`);
+    console.log('SSE connection closed by client');
     clearInterval(pingInterval);
   });
 });
@@ -151,45 +131,45 @@ app.post('/mcp', async (req: Request, res: Response) => {
     
     // Handle mcp.discover_tools for tool discovery
     if (method === "mcp.discover_tools") {
-      console.log("Received tool discovery request");
+      console.log("Received tool discovery request with headers:", req.headers);
       
-      // Use a simplified, directly hardcoded response that matches what Cursor expects
+      // Use exactly the format Cursor expects
       const tools = [
         {
-          name: "create-incident",
-          description: "Create a new status page incident",
-          parameters: {
-            type: "object",
-            properties: {
-              name: { type: "string", description: "The name of the incident" },
-              status: { type: "string", description: "Status (investigating, identified, monitoring, resolved)" },
-              impact: { type: "string", description: "Impact level (critical, major, minor, maintenance)" },
-              message: { type: "string", description: "The incident message/details" }
+          "name": "create_incident",
+          "description": "Create a new status page incident",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string", "description": "The name of the incident"},
+              "status": {"type": "string", "description": "Status (investigating, identified, monitoring, resolved)"},
+              "impact": {"type": "string", "description": "Impact level (critical, major, minor, maintenance)"},
+              "message": {"type": "string", "description": "The incident message/details"}
             },
-            required: ["name", "status", "impact", "message"]
+            "required": ["name", "status", "impact", "message"]
           }
         },
         {
-          name: "update-incident",
-          description: "Update an existing status page incident",
-          parameters: {
-            type: "object",
-            properties: {
-              id: { type: "string", description: "The ID of the incident to update" },
-              status: { type: "string", description: "The new status of the incident" },
-              message: { type: "string", description: "The update message" }
+          "name": "update_incident",
+          "description": "Update an existing status page incident",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string", "description": "The ID of the incident to update"},
+              "status": {"type": "string", "description": "The new status of the incident"},
+              "message": {"type": "string", "description": "The update message"}
             },
-            required: ["id"]
+            "required": ["id"]
           }
         },
         {
-          name: "list-incidents",
-          description: "List status page incidents",
-          parameters: {
-            type: "object",
-            properties: {
-              status: { type: "string", description: "Filter by status" },
-              limit: { type: "number", description: "Maximum number of incidents to return" }
+          "name": "list_incidents",
+          "description": "List status page incidents",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "status": {"type": "string", "description": "Filter by status"},
+              "limit": {"type": "number", "description": "Maximum number of incidents to return"}
             }
           }
         }
@@ -197,11 +177,11 @@ app.post('/mcp', async (req: Request, res: Response) => {
       
       // Log the full response we're sending
       const response = {
-        jsonrpc: "2.0",
-        result: {
-          tools: tools
+        "jsonrpc": "2.0",
+        "result": {
+          "tools": tools
         },
-        id: id || null
+        "id": id || null
       };
       
       console.log("Sending tool discovery response:", JSON.stringify(response, null, 2));
@@ -413,55 +393,35 @@ app.post('/mcp/direct', (req: Request, res: Response) => {
 
 // Add direct tools endpoint for testing - GET method for SSE
 app.get('/mcp/direct', (req: Request, res: Response) => {
-  console.log('Received GET request for direct SSE connection');
+  console.log('Received GET request for direct SSE connection with headers:', req.headers);
   
-  // Set headers exactly as expected for SSE
+  // Match exactly what Cursor expects for SSE headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-transform',
+    'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
     'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-statuspage-api-key, x-statuspage-page-id',
     'X-Accel-Buffering': 'no'
   });
   
-  // Create a unique ID for this connection
-  const connectionId = Date.now().toString();
-  console.log(`Direct SSE connection established with ID ${connectionId}`);
+  // The SSE specification requires an initial comment to be sent
+  res.write(':\n\n');
   
-  // Send a proper event message for connection established
-  const connectEvent = {
-    jsonrpc: "2.0",
-    method: "mcp.connection_established", 
-    params: { connectionId }
-  };
-  
-  // Format as a proper SSE event
-  res.write(`event: message\ndata: ${JSON.stringify(connectEvent)}\n\n`);
-  
-  // Keep connection open with regular pings (using proper SSE format)
+  // Keep connection alive with regular pings
   const pingInterval = setInterval(() => {
     try {
-      // Send a simple comment line for heartbeat
+      // Just send a comment line for heartbeat
       res.write(':\n\n');
-      
-      // Every 4 pings, send a proper ping event
-      if (Math.random() < 0.25) {
-        const pingEvent = {
-          jsonrpc: "2.0",
-          method: "mcp.ping",
-          params: { timestamp: new Date().toISOString() }
-        };
-        res.write(`event: message\ndata: ${JSON.stringify(pingEvent)}\n\n`);
-      }
     } catch (error) {
       console.error('Error sending ping:', error);
       clearInterval(pingInterval);
     }
-  }, 5000);
+  }, 15000);
   
-  // Handle client disconnect
+  // Clean up when client disconnects
   req.on('close', () => {
-    console.log(`Direct SSE connection ${connectionId} closed by client`);
+    console.log('Direct SSE connection closed by client');
     clearInterval(pingInterval);
   });
 });

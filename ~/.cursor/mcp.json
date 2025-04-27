@@ -1,10 +1,6 @@
 {
   "mcpServers": {
-    "weather": {
-      "command": "node",
-      "args": ["/Users/itai/quickstart-resources/weather-server-typescript/build/index.js"]
-    },
-    "status-page-manager": {
+    "status_page_manager": {
       "url": "https://warm-forest-87740-7343ecfc8c2d.herokuapp.com/mcp",
       "description": "Create and manage status page incidents",
       "headers": {
@@ -12,27 +8,6 @@
         "x-statuspage-api-key": "344ea8ea-ec9c-4c2c-9a21-08a413e14cf4",
         "x-statuspage-page-id": "09mddyczw3m6"
       }
-    },
-    "status-page-direct": {
-      "url": "https://warm-forest-87740-7343ecfc8c2d.herokuapp.com/mcp/direct",
-      "description": "Create and manage status page incidents (direct endpoint)",
-      "headers": {
-        "Content-Type": "application/json",
-        "x-statuspage-api-key": "344ea8ea-ec9c-4c2c-9a21-08a413e14cf4",
-        "x-statuspage-page-id": "09mddyczw3m6"
-      }
-    },
-    "status-page-manager-remote": {
-      "command": "curl",
-      "args": [
-        "-X", "POST",
-        "-H", "Content-Type: application/json",
-        "-H", "x-statuspage-api-key: 344ea8ea-ec9c-4c2c-9a21-08a413e14cf4",
-        "-H", "x-statuspage-page-id: 09mddyczw3m6",
-        "-s",
-        "-d", "@-",
-        "https://warm-forest-87740-7343ecfc8c2d.herokuapp.com/mcp"
-      ]
     }
   }
 } 
