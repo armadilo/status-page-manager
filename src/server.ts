@@ -48,8 +48,8 @@ app.post('/mcp', async (req: Request, res: Response) => {
     }
     
     // Process the MCP request directly
-    // Note: server's handleAsyncMessage is used for MCP processing
-    const response = await (server as any).processMessage(req.body);
+    // Access the underlying server instance which has the processMessage method
+    const response = await (server.server as any).handleRequest(req.body);
     
     console.log('MCP response:', JSON.stringify(response, null, 2));
     res.json(response);
