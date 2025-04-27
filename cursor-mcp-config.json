@@ -1,0 +1,10 @@
+{
+  "status-page-manager": {
+    "url": "https://warm-forest-87740-7343ecfc8c2d.herokuapp.com/mcp",
+    "description": "Create and manage status page incidents",
+    "headers": {
+      "x-statuspage-api-key": "344ea8ea-ec9c-4c2c-9a21-08a413e14cf4",
+      "x-statuspage-page-id": "09mddyczw3m6"
+    }
+  }
+} 

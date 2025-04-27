@@ -54,11 +54,14 @@ Click the "Deploy to Heroku" button above to deploy this app to Heroku in one cl
    heroku create your-app-name
    ```
 
-4. Set environment variables:
-   ```
-   heroku config:set STATUSPAGE_API_KEY=your_api_key
-   heroku config:set STATUSPAGE_PAGE_ID=your_page_id
-   ```
+4. **⚠️ Important:** Set environment variables securely through the Heroku Dashboard:
+   - Go to your app's Settings tab in the Heroku Dashboard
+   - Click on "Reveal Config Vars"
+   - Add the following environment variables:
+     - `STATUSPAGE_API_KEY`: Your StatusPage.io API key
+     - `STATUSPAGE_PAGE_ID`: Your StatusPage.io page ID
+
+   Never commit API keys or sensitive data to your repository!
 
 5. Deploy to Heroku:
    ```
@@ -72,6 +75,12 @@ Click the "Deploy to Heroku" button above to deploy this app to Heroku in one cl
 
 ## Using with Cursor
 
+There are two ways to use this MCP server with Cursor:
+
+### Option 1: Connect to Remote Server (Recommended)
+
+This approach uses a remote MCP server deployed on Heroku, with your credentials passed securely via headers:
+
 1. Open Cursor
 2. Go to Settings → MCP Servers
 3. Click "Add New MCP Server"
@@ -79,6 +88,42 @@ Click the "Deploy to Heroku" button above to deploy this app to Heroku in one cl
    - Name: Status Page Manager
    - URL: https://your-app-name.herokuapp.com/mcp
    - Description: Create and manage status page incidents
+5. Under "Advanced Settings", add these headers:
+   - `x-statuspage-api-key`: Your StatusPage API key
+   - `x-statuspage-page-id`: Your StatusPage page ID
+
+Sample configuration:
+
+```json
+{
+  "status-page-manager": {
+    "url": "https://your-app-name.herokuapp.com/mcp",
+    "description": "Create and manage status page incidents",
+    "headers": {
+      "x-statuspage-api-key": "your-api-key",
+      "x-statuspage-page-id": "your-page-id"
+    }
+  }
+}
+```
+
+### Option 2: Run Locally
+
+Alternatively, you can run the MCP server locally:
+
+1. Create a `.env` file with your credentials (see `.env.example`)
+2. Use this configuration in Cursor:
+
+```json
+{
+  "status-page-manager": {
+    "command": "/path/to/status-page-manager/run-mcp.sh",
+    "args": []
+  }
+}
+```
+
+With this approach, the server runs locally and reads credentials from your `.env` file.
 
 ## Available MCP Tools
 
