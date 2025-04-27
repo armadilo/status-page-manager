@@ -3,6 +3,7 @@ import cors from 'cors';
 import { server } from './index.js';
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Request, Response } from 'express';
+import { updateConfigFromHeaders, validateConfig } from './utils/config.js';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -33,6 +34,18 @@ app.get('/', (req: Request, res: Response) => {
 app.post('/mcp', async (req: Request, res: Response) => {
   try {
     console.log('Received MCP request:', JSON.stringify(req.body, null, 2));
+    
+    // Update configuration from headers
+    updateConfigFromHeaders(req.headers);
+    
+    // Validate configuration after headers are processed
+    if (!validateConfig()) {
+      console.error('Missing required configuration in headers');
+      return res.status(400).json({
+        error: 'Configuration error',
+        message: 'Missing required StatusPage API credentials. Please provide x-statuspage-api-key and x-statuspage-page-id headers.'
+      });
+    }
     
     // Process the MCP request directly
     // Note: server's handleAsyncMessage is used for MCP processing
