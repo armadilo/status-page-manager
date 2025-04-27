@@ -47,9 +47,30 @@ app.post('/mcp', async (req: Request, res: Response) => {
       });
     }
     
-    // Process the MCP request directly
-    // Access the underlying server instance which has the processMessage method
-    const response = await (server.server as any).handleRequest(req.body);
+    // Use a simpler approach - invoke the registered tools directly
+    // Extract the tool name and parameters from the request
+    const { name, params } = req.body;
+    
+    if (!name) {
+      return res.status(400).json({
+        error: 'Invalid request',
+        message: 'Missing tool name in request'
+      });
+    }
+    
+    // Get all registered tools from the server
+    const tools = (server as any)._registeredTools;
+    
+    if (!tools || !tools[name]) {
+      return res.status(404).json({
+        error: 'Tool not found',
+        message: `The requested tool '${name}' is not registered`
+      });
+    }
+    
+    // Invoke the tool directly
+    const tool = tools[name];
+    const response = await tool.callback(params || {}, { messageId: 'http-request' });
     
     console.log('MCP response:', JSON.stringify(response, null, 2));
     res.json(response);
