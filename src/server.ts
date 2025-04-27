@@ -23,10 +23,32 @@ app.use(express.json());
 
 // Add a basic health check endpoint
 app.get('/', (req: Request, res: Response) => {
+  // Set CORS headers for health check too
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
   res.send({
     status: 'ok',
     service: 'status-page-manager',
     timestamp: new Date().toISOString()
+  });
+});
+
+// Add endpoint to list available tools for debugging
+app.get('/tools', (req: Request, res: Response) => {
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  const tools = (server as any)._registeredTools || {};
+  const toolNames = Object.keys(tools);
+  
+  res.send({
+    status: 'ok',
+    tools: toolNames,
+    count: toolNames.length
   });
 });
 
@@ -56,20 +78,8 @@ app.get('/mcp', (req: Request, res: Response) => {
   // The SSE specification requires an initial comment to be sent
   res.write(':\n\n');
   
-  // Send an initial message with proper JSON-RPC format for MCP over HTTP
-  const initialMessage = {
-    jsonrpc: "2.0",
-    result: {
-      streaming: true,
-      version: "1.0"
-    },
-    id: "connection-init"
-  };
-  
-  // Write the message and flush the response
-  res.write(`data: ${JSON.stringify(initialMessage)}\n\n`);
-  // Try to flush if available (TypeScript safe check)
-  (res as any).flush?.();
+  // Don't send any initial message, just establish the connection
+  // Cursor will send requests via POST and doesn't expect an unsolicited message
   
   // Keep the connection alive with a ping every 15 seconds
   const pingInterval = setInterval(() => {
@@ -104,7 +114,9 @@ app.get('/mcp', (req: Request, res: Response) => {
 // Handle MCP requests
 app.post('/mcp', async (req: Request, res: Response) => {
   try {
-    console.log('Received MCP request:', JSON.stringify(req.body, null, 2));
+    console.log('Received MCP request:', JSON.stringify(req.body, null, 2), {
+      headers: req.headers
+    });
     
     // Update configuration from headers
     updateConfigFromHeaders(req.headers);
@@ -112,7 +124,7 @@ app.post('/mcp', async (req: Request, res: Response) => {
     // Validate configuration after headers are processed
     if (!validateConfig()) {
       console.error('Missing required configuration in headers');
-      return res.status(200).json({
+      const errorResponse = {
         jsonrpc: "2.0",
         error: {
           code: -32602,
@@ -120,12 +132,15 @@ app.post('/mcp', async (req: Request, res: Response) => {
           data: 'Please provide x-statuspage-api-key and x-statuspage-page-id headers.'
         },
         id: req.body.id || null
-      });
+      };
+      console.log('Sending error response:', errorResponse);
+      return res.status(200).json(errorResponse);
     }
     
     // Check if this is a valid JSON-RPC 2.0 request
     if (!req.body.jsonrpc || req.body.jsonrpc !== "2.0") {
-      return res.status(200).json({
+      console.error('Invalid JSON-RPC 2.0 request');
+      const errorResponse = {
         jsonrpc: "2.0",
         error: {
           code: -32600,
@@ -133,27 +148,33 @@ app.post('/mcp', async (req: Request, res: Response) => {
           data: 'The request does not conform to the JSON-RPC 2.0 specification'
         },
         id: req.body.id || null
-      });
+      };
+      console.log('Sending error response:', errorResponse);
+      return res.status(200).json(errorResponse);
     }
     
     // Handle special requests like connection initialization
     if (req.body.method === "mcp.connect") {
       console.log("Received connection setup request");
-      return res.status(200).json({
+      const connectResponse = {
         jsonrpc: "2.0",
         result: {
           streaming: true,
           version: "1.0"
         },
         id: req.body.id || null
-      });
+      };
+      console.log('Sending connect response:', connectResponse);
+      return res.status(200).json(connectResponse);
     }
     
     // Get the method and params from the request
     const { method, params, id } = req.body;
+    console.log(`Processing method: ${method}, id: ${id}`);
     
     if (!method) {
-      return res.status(200).json({
+      console.error('Missing method in request');
+      const errorResponse = {
         jsonrpc: "2.0",
         error: {
           code: -32600,
@@ -161,11 +182,14 @@ app.post('/mcp', async (req: Request, res: Response) => {
           data: 'Missing method parameter in request'
         },
         id: id || null
-      });
+      };
+      console.log('Sending error response:', errorResponse);
+      return res.status(200).json(errorResponse);
     }
     
     // Get all registered tools from the server
     const tools = (server as any)._registeredTools || {};
+    console.log('Available tools:', Object.keys(tools));
     
     // Handle method calls in "mcp.call_tool" format
     let toolName = method;
@@ -173,7 +197,8 @@ app.post('/mcp', async (req: Request, res: Response) => {
     // If method is in format "mcp.call_tool" - parse the tool name from it
     if (method.startsWith("mcp.call_tool")) {
       if (!params?.name) {
-        return res.status(200).json({
+        console.error('Missing tool name in call_tool request');
+        const errorResponse = {
           jsonrpc: "2.0",
           error: {
             code: -32602,
@@ -181,14 +206,17 @@ app.post('/mcp', async (req: Request, res: Response) => {
             data: 'Missing tool name in call_tool request'
           },
           id: id || null
-        });
+        };
+        console.log('Sending error response:', errorResponse);
+        return res.status(200).json(errorResponse);
       }
       toolName = params.name;
+      console.log(`Tool name extracted from params: ${toolName}`);
     }
     
     if (!tools[toolName]) {
       console.warn(`Tool not found: ${toolName}`);
-      return res.status(200).json({
+      const errorResponse = {
         jsonrpc: "2.0",
         error: {
           code: -32601,
@@ -196,13 +224,16 @@ app.post('/mcp', async (req: Request, res: Response) => {
           data: `The requested tool '${toolName}' is not registered`
         },
         id: id || null
-      });
+      };
+      console.log('Sending error response:', errorResponse);
+      return res.status(200).json(errorResponse);
     }
     
     console.log(`Invoking tool: ${toolName}`);
     
     // Extract the actual parameters to pass to the tool
     const toolParams = method.startsWith("mcp.call_tool") ? (params.params || {}) : params;
+    console.log('Tool parameters:', toolParams);
     
     // Invoke the tool directly
     const tool = tools[toolName];
@@ -217,12 +248,13 @@ app.post('/mcp', async (req: Request, res: Response) => {
       id: id || null
     };
     
+    console.log('Sending successful response:', response);
     res.json(response);
   } catch (error) {
     console.error('Error handling MCP request:', error);
     
     // Format the error according to JSON-RPC 2.0
-    res.status(200).json({ 
+    const errorResponse = {
       jsonrpc: "2.0",
       error: {
         code: -32603,
@@ -230,7 +262,10 @@ app.post('/mcp', async (req: Request, res: Response) => {
         data: error instanceof Error ? error.message : 'Unknown error'
       },
       id: req.body?.id || null
-    });
+    };
+    
+    console.log('Sending error response:', errorResponse);
+    res.status(200).json(errorResponse);
   }
 });
 
