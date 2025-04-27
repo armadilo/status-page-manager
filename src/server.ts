@@ -66,43 +66,90 @@ app.post('/mcp', async (req: Request, res: Response) => {
     if (!validateConfig()) {
       console.error('Missing required configuration in headers');
       return res.status(400).json({
-        error: 'Configuration error',
-        message: 'Missing required StatusPage API credentials. Please provide x-statuspage-api-key and x-statuspage-page-id headers.'
+        jsonrpc: "2.0",
+        error: {
+          code: -32602,
+          message: 'Missing required StatusPage API credentials',
+          data: 'Please provide x-statuspage-api-key and x-statuspage-page-id headers.'
+        },
+        id: req.body.id || null
       });
     }
     
-    // Use a simpler approach - invoke the registered tools directly
-    // Extract the tool name and parameters from the request
-    const { name, params } = req.body;
-    
-    if (!name) {
+    // Check if this is a valid JSON-RPC 2.0 request
+    if (!req.body.jsonrpc || req.body.jsonrpc !== "2.0") {
       return res.status(400).json({
-        error: 'Invalid request',
-        message: 'Missing tool name in request'
+        jsonrpc: "2.0",
+        error: {
+          code: -32600,
+          message: 'Invalid Request',
+          data: 'The request does not conform to the JSON-RPC 2.0 specification'
+        },
+        id: req.body.id || null
       });
     }
+    
+    // Get the method and params from the request
+    const { method, params, id } = req.body;
+    
+    if (!method) {
+      return res.status(400).json({
+        jsonrpc: "2.0",
+        error: {
+          code: -32600,
+          message: 'Invalid Request',
+          data: 'Missing method parameter in request'
+        },
+        id: id || null
+      });
+    }
+    
+    // Convert MCP method name to our internal tool name
+    // Format is typically "mcp.call_tool" or similar
+    const methodParts = method.split('.');
+    const toolName = methodParts.length > 1 ? methodParts[1] : method;
     
     // Get all registered tools from the server
     const tools = (server as any)._registeredTools;
     
-    if (!tools || !tools[name]) {
+    if (!tools || !tools[toolName]) {
       return res.status(404).json({
-        error: 'Tool not found',
-        message: `The requested tool '${name}' is not registered`
+        jsonrpc: "2.0",
+        error: {
+          code: -32601,
+          message: 'Method not found',
+          data: `The requested tool '${toolName}' is not registered`
+        },
+        id: id || null
       });
     }
     
     // Invoke the tool directly
-    const tool = tools[name];
-    const response = await tool.callback(params || {}, { messageId: 'http-request' });
+    const tool = tools[toolName];
+    const result = await tool.callback(params || {}, { messageId: id || 'http-request' });
     
-    console.log('MCP response:', JSON.stringify(response, null, 2));
+    console.log('MCP result:', JSON.stringify(result, null, 2));
+    
+    // Format the response according to JSON-RPC 2.0
+    const response = {
+      jsonrpc: "2.0",
+      result: result,
+      id: id || null
+    };
+    
     res.json(response);
   } catch (error) {
     console.error('Error handling MCP request:', error);
+    
+    // Format the error according to JSON-RPC 2.0
     res.status(500).json({ 
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      jsonrpc: "2.0",
+      error: {
+        code: -32603,
+        message: 'Internal error',
+        data: error instanceof Error ? error.message : 'Unknown error'
+      },
+      id: req.body?.id || null
     });
   }
 });
