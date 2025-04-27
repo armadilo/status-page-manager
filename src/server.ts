@@ -71,12 +71,204 @@ app.get('/mcp', (req: Request, res: Response) => {
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-statuspage-api-key, x-statuspage-page-id',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-statuspage-api-key, x-statuspage-page-id, x-statuspage-default-components',
     'X-Accel-Buffering': 'no'
   });
   
   // The SSE specification requires an initial comment to be sent
   res.write(':\n\n');
+  
+  // Send a proper event to notify that we're ready for connections
+  const initialEvent = {
+    jsonrpc: "2.0",
+    method: "mcp.ready",
+    params: {
+      version: "1.0"
+    }
+  };
+  
+  // Format as proper SSE event
+  res.write(`data: ${JSON.stringify(initialEvent)}\n\n`);
+  
+  // Send tool discovery information
+  const tools = [
+    {
+      "name": "mcp_status_page_manager_local_create_incident",
+      "description": "Create a new status page incident",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string"},
+          "status": {"type": "string", "enum": ["investigating", "identified", "monitoring", "resolved"]},
+          "impact": {"type": "string", "enum": ["critical", "major", "minor", "maintenance"]},
+          "message": {"type": "string"},
+          "notify": {"type": "boolean", "default": true},
+          "components": {
+            "description": "Component statuses to update",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {"description": "Component ID", "type": "string"},
+                "status": {
+                  "description": "Component status",
+                  "type": "string",
+                  "enum": ["operational", "degraded_performance", "partial_outage", "major_outage", "under_maintenance"]
+                }
+              },
+              "required": ["id", "status"]
+            }
+          }
+        },
+        "required": ["name", "status", "impact", "message"],
+        "type": "object"
+      }
+    },
+    {
+      "name": "mcp_status_page_manager_local_update_incident",
+      "description": "Update an existing status page incident",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "incidentId": {"description": "ID of the incident to update", "type": "string"},
+          "status": {
+            "description": "New status for the incident",
+            "type": "string",
+            "enum": ["investigating", "identified", "monitoring", "resolved"]
+          },
+          "impact": {
+            "description": "New impact level for the incident",
+            "type": "string",
+            "enum": ["critical", "major", "minor", "maintenance"]
+          },
+          "name": {"description": "New name/title for the incident", "type": "string"},
+          "message": {"description": "New message/description for the incident", "type": "string"},
+          "components": {
+            "description": "Component statuses to update",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": {"description": "Component ID", "type": "string"},
+                "status": {
+                  "description": "Component status",
+                  "type": "string",
+                  "enum": ["operational", "degraded_performance", "partial_outage", "major_outage", "under_maintenance"]
+                }
+              },
+              "required": ["id", "status"]
+            }
+          }
+        },
+        "required": ["incidentId"],
+        "type": "object"
+      }
+    },
+    {
+      "name": "mcp_status_page_manager_local_get_incident",
+      "description": "Get details of an existing status page incident",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "incidentId": {"description": "ID of the incident to retrieve", "type": "string"}
+        },
+        "required": ["incidentId"],
+        "type": "object"
+      }
+    },
+    {
+      "name": "mcp_status_page_manager_local_list_incidents",
+      "description": "List status page incidents with optional filtering",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "description": "Filter incidents by status",
+            "type": "string",
+            "enum": ["investigating", "identified", "monitoring", "resolved"]
+          },
+          "limit": {
+            "description": "Maximum number of incidents to return (default: 20)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "mcp_status_page_manager_local_list_components",
+      "description": "List available StatusPage components",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "random_string": {"description": "Dummy parameter for no-parameter tools", "type": "string"}
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "mcp_weather_get_alerts",
+      "description": "Get weather alerts for a state",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "description": "Two-letter state code (e.g. CA, NY)",
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2
+          }
+        },
+        "required": ["state"],
+        "type": "object"
+      }
+    },
+    {
+      "name": "mcp_weather_get_forecast",
+      "description": "Get weather forecast for a location",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "latitude": {
+            "description": "Latitude of the location",
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "description": "Longitude of the location",
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          }
+        },
+        "required": ["latitude", "longitude"],
+        "type": "object"
+      }
+    }
+  ];
+  
+  const discoverEvent = {
+    jsonrpc: "2.0",
+    method: "mcp.discover_tools",
+    params: {
+      tools: tools
+    }
+  };
+  
+  // Send tool discovery
+  res.write(`data: ${JSON.stringify(discoverEvent)}\n\n`);
   
   // Keep connection alive with regular pings
   const pingInterval = setInterval(() => {
@@ -122,8 +314,11 @@ app.post('/mcp', async (req: Request, res: Response) => {
       return res.status(200).json({
         jsonrpc: "2.0",
         result: {
-          streaming: true,
-          version: "1.0"
+          streaming: false,
+          version: "1.0",
+          name: "Status Page Manager MCP",
+          formats: ["json"],
+          capabilities: ["tool_discovery", "tool_execution"]
         },
         id: id || null
       });
@@ -373,7 +568,10 @@ app.post('/mcp/direct', (req: Request, res: Response) => {
       jsonrpc: "2.0",
       result: {
         streaming: false,
-        version: "1.0"
+        version: "1.0",
+        name: "Status Page Manager MCP",
+        formats: ["json"],
+        capabilities: ["tool_discovery", "tool_execution"]
       },
       id: req.body.id || null
     });
