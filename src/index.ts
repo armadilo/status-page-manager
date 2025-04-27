@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { createIncident, updateIncident, listIncidents, getIncident, listComponents } from './services/statuspage.js';
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from 'zod';
 import { config } from 'dotenv';
@@ -283,386 +284,255 @@ async function listStatusPageComponents(): Promise<StatusPageComponent[]> {
     }
 }
 
-// Create server instance
-const server = new McpServer({
-    name: "status-page",
-    version: "1.0.0",
+// Create the MCP server
+export const server = new McpServer({
+  name: "status-page-manager",
+  description: "Create and manage status page incidents"
 });
 
-// --- MCP Tool Definition ---
-
-server.tool(
-    "create-incident",
-    "Create a new status page incident",
-    {
-        name: z.string(),
-        status: z.enum(['investigating', 'identified', 'monitoring', 'resolved']),
-        impact: z.enum(['critical', 'major', 'minor', 'maintenance']),
-        message: z.string(),
-        notify: z.boolean().default(true),
-        components: z.array(
-            z.object({
-                id: z.string().describe("Component ID"),
-                status: z.enum([
-                    'operational', 
-                    'degraded_performance', 
-                    'partial_outage', 
-                    'major_outage', 
-                    'under_maintenance'
-                ]).describe("Component status")
-            })
-        ).optional().describe("Component statuses to update")
+// Register tools with the server
+server.registerTool({
+  name: "create-incident",
+  description: "Create a new status page incident",
+  callback: async (params: any) => {
+    console.log("Creating incident with params:", params);
+    try {
+      const incident = await createIncident(params);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Created incident: ${incident.name} with ID: ${incident.id}`
+          }
+        ]
+      };
+    } catch (error: any) {
+      console.error("Error creating incident:", error);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to create incident: ${error.message}`
+          }
+        ],
+        isError: true
+      };
+    }
+  },
+  paramsSchema: {
+    type: "object",
+    properties: {
+      name: { type: "string", description: "The name of the incident" },
+      status: { type: "string", description: "The status of the incident (investigating, identified, monitoring, resolved)" },
+      impact: { type: "string", description: "The impact of the incident (none, minor, major, critical)" },
+      message: { type: "string", description: "The incident message" },
+      components: { 
+        type: "array", 
+        description: "Components affected by the incident",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "Component ID" },
+            status: { type: "string", description: "Component status" }
+          }
+        }
+      },
+      notify: { type: "boolean", description: "Whether to send notifications" }
     },
-    async (params) => {
-        console.error("Received create-incident tool call with params:", params);
-        
-        // If components parameter is present but empty or undefined, fetch and return the list of components for selection
-        if (params.components === undefined) {
-            try {
-                const components = await listStatusPageComponents();
-                
-                // Create a simplified version of the components list for easy selection
-                const simplifiedComponents = components.map(c => ({
-                    id: c.id,
-                    name: c.name,
-                    current_status: c.status
-                }));
-                
-                // Return a response that indicates components need to be selected
-                return {
-                    content: [{
-                        type: 'text',
-                        text: JSON.stringify({
-                            needs_component_selection: true,
-                            message: "Please select components and their status for this incident.",
-                            available_components: simplifiedComponents,
-                            available_statuses: [
-                                'operational',
-                                'degraded_performance',
-                                'partial_outage',
-                                'major_outage',
-                                'under_maintenance'
-                            ]
-                        })
-                    }]
-                };
-            } catch (error) {
-                console.error("Error listing components:", error);
-                // Continue with incident creation without components
+    required: ["name", "status", "impact", "message"]
+  }
+});
+
+server.registerTool({
+  name: "update-incident",
+  description: "Update an existing status page incident",
+  callback: async (params: any) => {
+    console.log("Updating incident with params:", params);
+    try {
+      const incident = await updateIncident(params.id, params);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Updated incident: ${incident.name}`
+          }
+        ]
+      };
+    } catch (error: any) {
+      console.error("Error updating incident:", error);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to update incident: ${error.message}`
+          }
+        ],
+        isError: true
+      };
+    }
+  },
+  paramsSchema: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "The ID of the incident to update" },
+      name: { type: "string", description: "The updated name of the incident" },
+      status: { type: "string", description: "The updated status of the incident" },
+      impact: { type: "string", description: "The updated impact of the incident" },
+      message: { type: "string", description: "The update message" },
+      components: { 
+        type: "array", 
+        description: "Components affected by the incident",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "Component ID" },
+            status: { type: "string", description: "Component status" }
+          }
+        }
+      },
+      notify: { type: "boolean", description: "Whether to send notifications" }
+    },
+    required: ["id"]
+  }
+});
+
+server.registerTool({
+  name: "get-incident",
+  description: "Get details of an existing status page incident",
+  callback: async (params: any) => {
+    console.log("Getting incident with params:", params);
+    try {
+      const incident = await getIncident(params.id);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Incident ${incident.name}: ${incident.status} (${incident.impact})`
+          }
+        ]
+      };
+    } catch (error: any) {
+      console.error("Error getting incident:", error);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to get incident: ${error.message}`
+          }
+        ],
+        isError: true
+      };
+    }
+  },
+  paramsSchema: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "The ID of the incident to retrieve" }
+    },
+    required: ["id"]
+  }
+});
+
+server.registerTool({
+  name: "list-incidents",
+  description: "List status page incidents with optional filtering",
+  callback: async (params: any) => {
+    console.log("Listing incidents with params:", params);
+    try {
+      const incidents = await listIncidents(params);
+      if (incidents.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "No incidents found."
             }
-        }
-        
-        try {
-            const incident = await createStatusPageIncident(params);
-            return {
-                content: [{
-                    type: 'text',
-                    text: JSON.stringify({
-                        success: true,
-                        incidentId: incident.id,
-                        url: incident.shortlink
-                    })
-                }]
-            };
-        } catch (error) {
-            console.error('Error processing create-incident tool call:', error);
-            return {
-                content: [{
-                    type: 'text',
-                    text: JSON.stringify({
-                        success: false,
-                        error: error instanceof Error ? error.message : String(error)
-                    })
-                }],
-                isError: true
-            };
-        }
+          ]
+        };
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: incidents.map(inc => 
+              `- ${inc.name}: ${inc.status} (${inc.impact}) [ID: ${inc.id}]`
+            ).join("\n")
+          }
+        ]
+      };
+    } catch (error: any) {
+      console.error("Error listing incidents:", error);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to list incidents: ${error.message}`
+          }
+        ],
+        isError: true
+      };
     }
-);
+  },
+  paramsSchema: {
+    type: "object",
+    properties: {
+      status: { type: "string", description: "Filter by status" },
+      limit: { type: "number", description: "Maximum number of incidents to return" }
+    }
+  }
+});
 
-// MCP Tool for updating incidents
-server.tool(
-    "update-incident",
-    "Update an existing status page incident",
-    {
-        incidentId: z.string().describe("ID of the incident to update"),
-        status: z.enum(['investigating', 'identified', 'monitoring', 'resolved']).optional().describe("New status for the incident"),
-        impact: z.enum(['critical', 'major', 'minor', 'maintenance']).optional().describe("New impact level for the incident"),
-        message: z.string().optional().describe("New message/description for the incident"),
-        name: z.string().optional().describe("New name/title for the incident"),
-        components: z.array(
-            z.object({
-                id: z.string().describe("Component ID"),
-                status: z.enum([
-                    'operational', 
-                    'degraded_performance', 
-                    'partial_outage', 
-                    'major_outage', 
-                    'under_maintenance'
-                ]).describe("Component status")
-            })
-        ).optional().describe("Component statuses to update")
-    },
-    async (params) => {
-        console.error("Received update-incident tool call with params:", params);
-        
-        // Special handling for when only incidentId is specified - display component selection
-        if (params.incidentId && !params.status && !params.impact && !params.message && !params.name && 
-            params.components === undefined) {
-            try {
-                // Get the current incident details
-                const incident = await getStatusPageIncident(params.incidentId);
-                console.error(`Retrieved incident to update: ${incident.id} - ${incident.name}`);
-                
-                // Also get available components
-                const components = await listStatusPageComponents();
-                
-                // Create a simplified version of the components list for easy selection
-                const simplifiedComponents = components.map(c => ({
-                    id: c.id,
-                    name: c.name,
-                    current_status: c.status
-                }));
-                
-                // Return a response that indicates components need to be selected
-                return {
-                    content: [{
-                        type: 'text',
-                        text: JSON.stringify({
-                            needs_component_selection: true,
-                            incident_details: {
-                                id: incident.id,
-                                name: incident.name,
-                                status: incident.status,
-                                impact: incident.impact
-                            },
-                            message: "Please select what you want to update for this incident. Available components:",
-                            available_components: simplifiedComponents,
-                            available_statuses: [
-                                'operational',
-                                'degraded_performance',
-                                'partial_outage',
-                                'major_outage',
-                                'under_maintenance'
-                            ]
-                        })
-                    }]
-                };
-            } catch (error) {
-                console.error("Error retrieving incident details or components:", error);
-                return {
-                    content: [{
-                        type: 'text',
-                        text: JSON.stringify({
-                            success: false,
-                            error: error instanceof Error ? error.message : String(error)
-                        })
-                    }],
-                    isError: true
-                };
+server.registerTool({
+  name: "list-components",
+  description: "List available StatusPage components",
+  callback: async () => {
+    console.log("Listing components");
+    try {
+      const components = await listComponents();
+      if (components.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "No components found."
             }
-        }
-        
-        try {
-            // Ensure at least one update parameter is provided
-            if (!params.status && !params.impact && !params.message && !params.name && 
-                (!params.components || params.components.length === 0)) {
-                return {
-                    content: [{
-                        type: 'text',
-                        text: JSON.stringify({
-                            success: false,
-                            error: "At least one of status, impact, message, name, or components must be provided for an update"
-                        })
-                    }],
-                    isError: true
-                };
-            }
-            
-            const incident = await updateStatusPageIncident(params);
-            return {
-                content: [{
-                    type: 'text',
-                    text: JSON.stringify({
-                        success: true,
-                        incidentId: incident.id,
-                        url: incident.shortlink,
-                        status: incident.status,
-                        impact: incident.impact
-                    })
-                }]
-            };
-        } catch (error) {
-            console.error('Error processing update-incident tool call:', error);
-            return {
-                content: [{
-                    type: 'text',
-                    text: JSON.stringify({
-                        success: false,
-                        error: error instanceof Error ? error.message : String(error)
-                    })
-                }],
-                isError: true
-            };
-        }
+          ]
+        };
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: components.map(comp => 
+              `- ${comp.name}: ${comp.status} [ID: ${comp.id}]`
+            ).join("\n")
+          }
+        ]
+      };
+    } catch (error: any) {
+      console.error("Error listing components:", error);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to list components: ${error.message}`
+          }
+        ],
+        isError: true
+      };
     }
-);
+  }
+});
 
-// MCP Tool for getting incident details
-server.tool(
-    "get-incident",
-    "Get details of an existing status page incident",
-    {
-        incidentId: z.string().describe("ID of the incident to retrieve")
-    },
-    async (params) => {
-        console.error("Received get-incident tool call with params:", params);
-        try {
-            const incident = await getStatusPageIncident(params.incidentId);
-            return {
-                content: [{
-                    type: 'text',
-                    text: JSON.stringify({
-                        success: true,
-                        incident: {
-                            id: incident.id,
-                            name: incident.name,
-                            status: incident.status,
-                            impact: incident.impact,
-                            created_at: incident.created_at,
-                            updated_at: incident.updated_at,
-                            shortlink: incident.shortlink
-                        }
-                    })
-                }]
-            };
-        } catch (error) {
-            console.error('Error processing get-incident tool call:', error);
-            return {
-                content: [{
-                    type: 'text',
-                    text: JSON.stringify({
-                        success: false,
-                        error: error instanceof Error ? error.message : String(error)
-                    })
-                }],
-                isError: true
-            };
-        }
-    }
-);
-
-// MCP Tool for listing incidents
-server.tool(
-    "list-incidents",
-    "List status page incidents with optional filtering",
-    {
-        status: z.enum(['investigating', 'identified', 'monitoring', 'resolved']).optional().describe("Filter incidents by status"),
-        limit: z.number().min(1).max(100).optional().describe("Maximum number of incidents to return (default: 20)")
-    },
-    async (params) => {
-        console.error("Received list-incidents tool call with params:", params);
-        try {
-            const incidents = await listStatusPageIncidents(params);
-            
-            // Simplify the incident objects for cleaner output
-            const simplifiedIncidents = incidents.map(incident => ({
-                id: incident.id,
-                name: incident.name,
-                status: incident.status,
-                impact: incident.impact,
-                created_at: incident.created_at,
-                updated_at: incident.updated_at,
-                shortlink: incident.shortlink
-            }));
-            
-            return {
-                content: [{
-                    type: 'text',
-                    text: JSON.stringify({
-                        success: true,
-                        count: incidents.length,
-                        incidents: simplifiedIncidents
-                    })
-                }]
-            };
-        } catch (error) {
-            console.error('Error processing list-incidents tool call:', error);
-            return {
-                content: [{
-                    type: 'text',
-                    text: JSON.stringify({
-                        success: false,
-                        error: error instanceof Error ? error.message : String(error)
-                    })
-                }],
-                isError: true
-            };
-        }
-    }
-);
-
-// MCP Tool for listing components
-server.tool(
-    "list-components",
-    "List available StatusPage components",
-    {
-        random_string: z.string().optional().describe("Dummy parameter for no-parameter tools")
-    },
-    async () => {
-        console.error("Received list-components tool call");
-        try {
-            const components = await listStatusPageComponents();
-            
-            // Simplify the component objects for cleaner output
-            const simplifiedComponents = components.map(component => ({
-                id: component.id,
-                name: component.name,
-                status: component.status,
-                description: component.description
-            }));
-            
-            return {
-                content: [{
-                    type: 'text',
-                    text: JSON.stringify({
-                        success: true,
-                        count: components.length,
-                        components: simplifiedComponents
-                    })
-                }]
-            };
-        } catch (error) {
-            console.error('Error processing list-components tool call:', error);
-            return {
-                content: [{
-                    type: 'text',
-                    text: JSON.stringify({
-                        success: false,
-                        error: error instanceof Error ? error.message : String(error)
-                    })
-                }],
-                isError: true
-            };
-        }
-    }
-);
+console.log("Tools registered:", Object.keys((server as any)._registeredTools || {}));
 
 // Start the server
-async function main() {
-    console.error("Starting Status Page MCP Server...");
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    console.error("Status Page MCP Server running on stdio");
+async function start() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
 }
 
-// Only run main() if this file is executed directly, not when imported
-if (import.meta.url === `file://${process.argv[1]}`) {
-    main().catch((error) => {
-        console.error("Fatal error in main():", error);
-        process.exit(1);
-    });
-}
-
-// Export the server for use in other files
-export { server };
+// Export for use in other modules
+export { start };
