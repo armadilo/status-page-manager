@@ -38,6 +38,11 @@ app.get('/mcp', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  
+  // The SSE specification requires an initial comment to be sent
+  res.write(':\n\n');
   
   // Send an initial message with proper JSON-RPC format
   const initialMessage = {
@@ -45,21 +50,40 @@ app.get('/mcp', (req: Request, res: Response) => {
     method: "mcp.connection_established",
     params: {}
   };
-  res.write(`data: ${JSON.stringify(initialMessage)}\n\n`);
   
-  // Keep the connection alive with a ping every 30 seconds
+  // Write the message and flush the response
+  res.write(`data: ${JSON.stringify(initialMessage)}\n\n`);
+  // Try to flush if available (TypeScript safe check)
+  (res as any).flush?.();
+  
+  // Keep the connection alive with a ping every 15 seconds (more frequent)
   const pingInterval = setInterval(() => {
     const pingMessage = {
       jsonrpc: "2.0",
       method: "mcp.ping",
       params: { timestamp: new Date().toISOString() }
     };
+    
+    // Send the ping and flush
     res.write(`data: ${JSON.stringify(pingMessage)}\n\n`);
-  }, 30000);
+    // Try to flush if available (TypeScript safe check)
+    (res as any).flush?.();
+  }, 15000);
   
   // Clean up when client disconnects
   req.on('close', () => {
-    console.log('SSE connection closed');
+    console.log('SSE connection closed by client');
+    clearInterval(pingInterval);
+  });
+  
+  req.on('error', (err) => {
+    console.error('SSE connection error:', err);
+    clearInterval(pingInterval);
+  });
+  
+  // If the server closes the connection
+  res.on('close', () => {
+    console.log('SSE connection closed by server');
     clearInterval(pingInterval);
   });
 });
