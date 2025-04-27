@@ -1,0 +1,22 @@
+{
+  "name": "Status Page Manager",
+  "description": "MCP server for managing status page incidents via Cursor",
+  "repository": "https://github.com/armadilo/status-page-manager",
+  "logo": "https://node-js-sample.herokuapp.com/node.png",
+  "keywords": ["node", "statuspage", "mcp", "cursor"],
+  "env": {
+    "STATUSPAGE_API_KEY": {
+      "description": "Your StatusPage.io API key",
+      "required": true
+    },
+    "STATUSPAGE_PAGE_ID": {
+      "description": "Your StatusPage.io page ID",
+      "required": true
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ]
+} 
