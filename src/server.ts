@@ -354,6 +354,40 @@ app.post('/mcp/direct', (req: Request, res: Response) => {
   });
 });
 
+// Add direct tools endpoint for testing - GET method for SSE
+app.get('/mcp/direct', (req: Request, res: Response) => {
+  console.log('Received GET request for direct SSE connection');
+  
+  // Set headers for SSE
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable Nginx buffering if present
+  
+  // Flush headers immediately
+  res.flushHeaders();
+  
+  // Send an initial comment to establish the connection
+  res.write(':\n\n');
+  
+  // Keep connection open with regular pings
+  const pingInterval = setInterval(() => {
+    try {
+      res.write(':\n\n');
+    } catch (error) {
+      console.error('Error sending ping:', error);
+      clearInterval(pingInterval);
+    }
+  }, 10000);
+  
+  // Handle client disconnect
+  req.on('close', () => {
+    console.log('Direct SSE connection closed by client');
+    clearInterval(pingInterval);
+  });
+});
+
 // Start the Express server
 async function startServer() {
   try {
