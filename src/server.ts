@@ -98,7 +98,7 @@ app.get('/mcp', (req: Request, res: Response) => {
 // Handle MCP requests
 app.post('/mcp', async (req: Request, res: Response) => {
   try {
-    console.log('Received MCP POST request');
+    console.log('Received MCP POST request:', JSON.stringify(req.body, null, 2));
     
     // Basic validation for JSON-RPC 2.0
     if (!req.body.jsonrpc || req.body.jsonrpc !== "2.0") {
@@ -115,13 +115,38 @@ app.post('/mcp', async (req: Request, res: Response) => {
     
     const { method, params, id } = req.body;
     
-    // Handle mcp.connect differently - this is usually the first message
+    // Handle mcp.connect for connection setup
     if (method === "mcp.connect") {
+      console.log("Received connection setup request");
       return res.status(200).json({
         jsonrpc: "2.0",
         result: {
           streaming: true,
           version: "1.0"
+        },
+        id: id || null
+      });
+    }
+    
+    // Handle mcp.discover_tools for tool discovery
+    if (method === "mcp.discover_tools") {
+      console.log("Received tool discovery request");
+      
+      // Get all registered tools from the server
+      const tools = (server as any)._registeredTools || {};
+      const formattedTools = Object.keys(tools).map(name => {
+        const tool = tools[name];
+        return {
+          name,
+          description: tool.description || '',
+          parameters: tool.paramsSchema || {}
+        };
+      });
+      
+      return res.status(200).json({
+        jsonrpc: "2.0",
+        result: {
+          tools: formattedTools
         },
         id: id || null
       });
@@ -173,6 +198,7 @@ app.post('/mcp', async (req: Request, res: Response) => {
     }
     
     // Handle other methods
+    console.log(`Unhandled method: ${method}`);
     return res.status(200).json({
       jsonrpc: "2.0",
       error: {

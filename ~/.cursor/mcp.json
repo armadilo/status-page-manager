@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "status-page-manager-remote": {
+      "command": "curl",
+      "args": [
+        "-X", "POST",
+        "-H", "Content-Type: application/json",
+        "-H", "x-statuspage-api-key: 344ea8ea-ec9c-4c2c-9a21-08a413e14cf4",
+        "-H", "x-statuspage-page-id: 09mddyczw3m6",
+        "-s",
+        "-d", "@-",
+        "https://warm-forest-87740-7343ecfc8c2d.herokuapp.com/mcp"
+      ]
+    }
+  }
+} 
