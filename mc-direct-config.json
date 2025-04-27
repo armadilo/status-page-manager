@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "status-page-mc-direct": {
+      "url": "http://localhost:8081/mc", 
+      "description": "Direct Status Page MCP Server (Testing)",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    }
+  }
+} 

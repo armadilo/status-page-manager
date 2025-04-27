@@ -153,63 +153,60 @@ app.post('/mcp', async (req: Request, res: Response) => {
     if (method === "mcp.discover_tools") {
       console.log("Received tool discovery request");
       
-      // Get all registered tools from the server
-      const tools = (server as any)._registeredTools || {};
-      const formattedTools = Object.keys(tools).map(name => {
-        const tool = tools[name];
-        
-        // Create a schema in JSON Schema format from the Zod schema if available
-        let parameters: any = {};
-        try {
-          if (tool.schema) {
-            // Extract parameter schema from the tool object
-            parameters = {
-              type: "object",
-              properties: {},
-              required: []
-            };
-            
-            // Try to extract info from the zod schema if available
-            // This is a best-effort conversion
-            for (const param in tool.schema) {
-              if (tool.schema[param]._def) {
-                const paramDef = tool.schema[param]._def;
-                const isRequired = !paramDef.isOptional;
-                const description = paramDef.description || '';
-                
-                // Add to properties
-                parameters.properties[param] = {
-                  type: paramDef.typeName === 'ZodString' ? 'string' : 
-                        paramDef.typeName === 'ZodNumber' ? 'number' :
-                        paramDef.typeName === 'ZodBoolean' ? 'boolean' : 'object',
-                  description: description
-                };
-                
-                // Add to required list if needed
-                if (isRequired) {
-                  parameters.required.push(param);
-                }
-              }
+      // Use a simplified, directly hardcoded response that matches what Cursor expects
+      const tools = [
+        {
+          name: "create-incident",
+          description: "Create a new status page incident",
+          parameters: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "The name of the incident" },
+              status: { type: "string", description: "Status (investigating, identified, monitoring, resolved)" },
+              impact: { type: "string", description: "Impact level (critical, major, minor, maintenance)" },
+              message: { type: "string", description: "The incident message/details" }
+            },
+            required: ["name", "status", "impact", "message"]
+          }
+        },
+        {
+          name: "update-incident",
+          description: "Update an existing status page incident",
+          parameters: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "The ID of the incident to update" },
+              status: { type: "string", description: "The new status of the incident" },
+              message: { type: "string", description: "The update message" }
+            },
+            required: ["id"]
+          }
+        },
+        {
+          name: "list-incidents",
+          description: "List status page incidents",
+          parameters: {
+            type: "object",
+            properties: {
+              status: { type: "string", description: "Filter by status" },
+              limit: { type: "number", description: "Maximum number of incidents to return" }
             }
           }
-        } catch (e) {
-          console.warn(`Failed to extract schema for tool ${name}:`, e);
         }
-        
-        return {
-          name,
-          description: tool.description || '',
-          parameters: parameters
-        };
-      });
+      ];
       
-      return res.status(200).json({
+      // Log the full response we're sending
+      const response = {
         jsonrpc: "2.0",
         result: {
-          tools: formattedTools
+          tools: tools
         },
         id: id || null
-      });
+      };
+      
+      console.log("Sending tool discovery response:", JSON.stringify(response, null, 2));
+      
+      return res.status(200).json(response);
     }
     
     // Handle mcp.call_tool method
