@@ -3,10 +3,10 @@ import cors from 'cors';
 import { server } from './index.js';
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { Request, Response } from 'express';
-import { updateConfigFromHeaders, validateConfig } from './utils/config.js';
+import { updateConfigFromHeaders } from './utils/config.js';
 
 const app = express();
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 6500;
 
 // Initialize the MCP server
 async function initMcpServer() {
@@ -65,7 +65,7 @@ app.options('*', (req: Request, res: Response) => {
 app.get('/mcp', (req: Request, res: Response) => {
   console.log('Received SSE connection request from Cursor with headers:', req.headers);
   
-  // Match exactly what Cursor expects for SSE headers
+  // Set SSE headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -75,7 +75,7 @@ app.get('/mcp', (req: Request, res: Response) => {
     'X-Accel-Buffering': 'no'
   });
   
-  // The SSE specification requires an initial comment to be sent
+  // Send initial SSE comment
   res.write(':\n\n');
   
   // Send a proper event to notify that we're ready for connections
@@ -87,7 +87,6 @@ app.get('/mcp', (req: Request, res: Response) => {
     }
   };
   
-  // Format as proper SSE event
   res.write(`data: ${JSON.stringify(initialEvent)}\n\n`);
   
   // Send tool discovery information
@@ -214,48 +213,6 @@ app.get('/mcp', (req: Request, res: Response) => {
         },
         "type": "object"
       }
-    },
-    {
-      "name": "mcp_weather_get_alerts",
-      "description": "Get weather alerts for a state",
-      "parameters": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
-        "properties": {
-          "state": {
-            "description": "Two-letter state code (e.g. CA, NY)",
-            "type": "string",
-            "minLength": 2,
-            "maxLength": 2
-          }
-        },
-        "required": ["state"],
-        "type": "object"
-      }
-    },
-    {
-      "name": "mcp_weather_get_forecast",
-      "description": "Get weather forecast for a location",
-      "parameters": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
-        "properties": {
-          "latitude": {
-            "description": "Latitude of the location",
-            "type": "number",
-            "minimum": -90,
-            "maximum": 90
-          },
-          "longitude": {
-            "description": "Longitude of the location",
-            "type": "number",
-            "minimum": -180,
-            "maximum": 180
-          }
-        },
-        "required": ["latitude", "longitude"],
-        "type": "object"
-      }
     }
   ];
   
@@ -273,7 +230,6 @@ app.get('/mcp', (req: Request, res: Response) => {
   // Keep connection alive with regular pings
   const pingInterval = setInterval(() => {
     try {
-      // Just send a comment line for heartbeat
       res.write(':\n\n');
     } catch (error) {
       console.error('Error sending ping:', error);
@@ -484,263 +440,6 @@ app.get('/mcp/metadata', (req: Request, res: Response) => {
     server_name: 'Status Page Manager',
     version: '1.0.0',
     tools: formattedTools
-  });
-});
-
-// Add direct tools endpoint for testing
-app.post('/mcp/direct', (req: Request, res: Response) => {
-  console.log('Received direct tools request');
-  
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-statuspage-api-key, x-statuspage-page-id');
-  
-  // Check if it's a discover tools request
-  if (req.body.method === "mcp.discover_tools") {
-    return res.json({
-      jsonrpc: "2.0",
-      result: {
-        tools: [
-          {
-            name: "create-incident",
-            description: "Create a new status page incident",
-            parameters: {
-              type: "object",
-              properties: {
-                name: { type: "string", description: "The name of the incident" },
-                status: { type: "string", description: "The status of the incident (investigating, identified, monitoring, resolved)" },
-                impact: { type: "string", description: "The impact of the incident (none, minor, major, critical)" },
-                message: { type: "string", description: "The incident message" }
-              },
-              required: ["name", "status", "impact", "message"]
-            }
-          },
-          {
-            name: "update-incident",
-            description: "Update an existing status page incident",
-            parameters: {
-              type: "object",
-              properties: {
-                id: { type: "string", description: "The ID of the incident to update" },
-                status: { type: "string", description: "The new status of the incident" },
-                message: { type: "string", description: "The update message" }
-              },
-              required: ["id"]
-            }
-          },
-          {
-            name: "list-incidents",
-            description: "List status page incidents",
-            parameters: {
-              type: "object",
-              properties: {
-                status: { type: "string", description: "Filter by status" },
-                limit: { type: "number", description: "Maximum number of incidents to return" }
-              }
-            }
-          }
-        ]
-      },
-      id: req.body.id || null
-    });
-  }
-  
-  // Check if it's a call tool request
-  if (req.body.method === "mcp.call_tool") {
-    return res.json({
-      jsonrpc: "2.0",
-      result: {
-        content: [
-          {
-            type: "text",
-            text: "Tool called successfully! This is a test response."
-          }
-        ]
-      },
-      id: req.body.id || null
-    });
-  }
-  
-  // Handle mcp.connect
-  if (req.body.method === "mcp.connect") {
-    return res.json({
-      jsonrpc: "2.0",
-      result: {
-        streaming: false,
-        version: "1.0",
-        name: "Status Page Manager MCP",
-        formats: ["json"],
-        capabilities: ["tool_discovery", "tool_execution"]
-      },
-      id: req.body.id || null
-    });
-  }
-  
-  // Handle other methods
-  return res.json({
-    jsonrpc: "2.0",
-    error: {
-      code: -32601,
-      message: "Method not found",
-      data: `Method ${req.body.method} not supported`
-    },
-    id: req.body.id || null
-  });
-});
-
-// Add direct tools endpoint for testing - GET method for SSE
-app.get('/mcp/direct', (req: Request, res: Response) => {
-  console.log('Received GET request for direct SSE connection with headers:', req.headers);
-  
-  // Match exactly what Cursor expects for SSE headers
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-statuspage-api-key, x-statuspage-page-id',
-    'X-Accel-Buffering': 'no'
-  });
-  
-  // The SSE specification requires an initial comment to be sent
-  res.write(':\n\n');
-  
-  // Keep connection alive with regular pings
-  const pingInterval = setInterval(() => {
-    try {
-      // Just send a comment line for heartbeat
-      res.write(':\n\n');
-    } catch (error) {
-      console.error('Error sending ping:', error);
-      clearInterval(pingInterval);
-    }
-  }, 15000);
-  
-  // Clean up when client disconnects
-  req.on('close', () => {
-    console.log('Direct SSE connection closed by client');
-    clearInterval(pingInterval);
-  });
-});
-
-// Add no-SSE endpoint for MCP
-app.post('/no-sse', (req: Request, res: Response) => {
-  console.log('Received POST request to no-SSE endpoint:', JSON.stringify(req.body, null, 2));
-  
-  // Validate JSON-RPC 2.0 request
-  if (!req.body.jsonrpc || req.body.jsonrpc !== '2.0') {
-    return res.json({
-      jsonrpc: '2.0',
-      error: { code: -32600, message: 'Invalid request' },
-      id: req.body.id || null
-    });
-  }
-  
-  const { method, params, id } = req.body;
-  
-  // Handle connection request
-  if (method === 'mcp.connect') {
-    return res.json({
-      jsonrpc: '2.0',
-      result: { streaming: false, version: '1.0' },
-      id
-    });
-  }
-  
-  // Handle tool discovery
-  if (method === 'mcp.discover_tools') {
-    // Use the same hardcoded tool list we use in other endpoints
-    const tools = [
-      {
-        name: 'create_incident',
-        description: 'Create a new status page incident',
-        parameters: {
-          type: 'object',
-          properties: {
-            name: { type: 'string', description: 'The name of the incident' },
-            status: { type: 'string', description: 'Status (investigating, identified, monitoring, resolved)' },
-            impact: { type: 'string', description: 'Impact level (critical, major, minor, maintenance)' },
-            message: { type: 'string', description: 'The incident message/details' }
-          },
-          required: ['name', 'status', 'impact', 'message']
-        }
-      },
-      {
-        name: 'update_incident',
-        description: 'Update an existing status page incident',
-        parameters: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', description: 'The ID of the incident to update' },
-            status: { type: 'string', description: 'The new status of the incident' },
-            message: { type: 'string', description: 'The update message' }
-          },
-          required: ['id']
-        }
-      },
-      {
-        name: 'list_incidents',
-        description: 'List status page incidents',
-        parameters: {
-          type: 'object',
-          properties: {
-            status: { type: 'string', description: 'Filter by status' },
-            limit: { type: 'number', description: 'Maximum number of incidents to return' }
-          }
-        }
-      }
-    ];
-    
-    return res.json({
-      jsonrpc: '2.0',
-      result: {
-        tools: tools
-      },
-      id
-    });
-  }
-  
-  // Handle tool call
-  if (method === 'mcp.call_tool') {
-    if (!params?.name) {
-      return res.json({
-        jsonrpc: '2.0',
-        error: { code: -32602, message: 'Missing tool name' },
-        id
-      });
-    }
-    
-    const toolName = params.name;
-    const toolParams = params.params || {};
-    
-    // Update config from headers
-    updateConfigFromHeaders(req.headers);
-    
-    // Return a simple successful response
-    return res.json({
-      jsonrpc: '2.0',
-      result: {
-        content: [
-          {
-            type: 'text',
-            text: `Executed ${toolName} with parameters: ${JSON.stringify(toolParams)}`
-          }
-        ]
-      },
-      id
-    });
-  }
-  
-  // Unknown method
-  return res.json({
-    jsonrpc: '2.0',
-    error: {
-      code: -32601,
-      message: 'Method not found',
-      data: `The requested method '${method}' is not supported`
-    },
-    id
   });
 });
 

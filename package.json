@@ -10,7 +10,6 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "no-sse": "node src/no-sse-server.js",
     "dev": "nodemon --watch 'src/**/*.ts' --delay 1 --exec 'npm run build && node -r dotenv/config dist/index.js'",
     "dev:http": "nodemon --watch 'src/**/*.ts' --delay 1 --exec 'npm run build && node dist/server.js'",
     "heroku-postbuild": "npm run build"
