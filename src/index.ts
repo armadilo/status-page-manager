@@ -287,14 +287,27 @@ async function listStatusPageComponents(): Promise<StatusPageComponent[]> {
 // Create the MCP server
 export const server = new McpServer({
   name: "status-page-manager",
-  description: "Create and manage status page incidents"
+  version: "1.0.0"
 });
 
-// Register tools with the server
-server.registerTool({
-  name: "create-incident",
-  description: "Create a new status page incident",
-  callback: async (params: any) => {
+// Register tools using the tool method
+server.tool(
+  "create-incident",
+  "Create a new status page incident",
+  {
+    name: z.string().describe("The name of the incident"),
+    status: z.string().describe("The status of the incident (investigating, identified, monitoring, resolved)"),
+    impact: z.string().describe("The impact of the incident (none, minor, major, critical)"),
+    message: z.string().describe("The incident message"),
+    components: z.array(
+      z.object({
+        id: z.string().describe("Component ID"),
+        status: z.string().describe("Component status")
+      })
+    ).optional().describe("Components affected by the incident"),
+    notify: z.boolean().optional().describe("Whether to send notifications")
+  },
+  async (params: any) => {
     console.log("Creating incident with params:", params);
     try {
       const incident = await createIncident(params);
@@ -318,35 +331,27 @@ server.registerTool({
         isError: true
       };
     }
-  },
-  paramsSchema: {
-    type: "object",
-    properties: {
-      name: { type: "string", description: "The name of the incident" },
-      status: { type: "string", description: "The status of the incident (investigating, identified, monitoring, resolved)" },
-      impact: { type: "string", description: "The impact of the incident (none, minor, major, critical)" },
-      message: { type: "string", description: "The incident message" },
-      components: { 
-        type: "array", 
-        description: "Components affected by the incident",
-        items: {
-          type: "object",
-          properties: {
-            id: { type: "string", description: "Component ID" },
-            status: { type: "string", description: "Component status" }
-          }
-        }
-      },
-      notify: { type: "boolean", description: "Whether to send notifications" }
-    },
-    required: ["name", "status", "impact", "message"]
   }
-});
+);
 
-server.registerTool({
-  name: "update-incident",
-  description: "Update an existing status page incident",
-  callback: async (params: any) => {
+server.tool(
+  "update-incident",
+  "Update an existing status page incident",
+  {
+    id: z.string().describe("The ID of the incident to update"),
+    name: z.string().optional().describe("The updated name of the incident"),
+    status: z.string().optional().describe("The updated status of the incident"),
+    impact: z.string().optional().describe("The updated impact of the incident"),
+    message: z.string().optional().describe("The update message"),
+    components: z.array(
+      z.object({
+        id: z.string().describe("Component ID"),
+        status: z.string().describe("Component status")
+      })
+    ).optional().describe("Components affected by the incident"),
+    notify: z.boolean().optional().describe("Whether to send notifications")
+  },
+  async (params: any) => {
     console.log("Updating incident with params:", params);
     try {
       const incident = await updateIncident(params.id, params);
@@ -370,36 +375,16 @@ server.registerTool({
         isError: true
       };
     }
-  },
-  paramsSchema: {
-    type: "object",
-    properties: {
-      id: { type: "string", description: "The ID of the incident to update" },
-      name: { type: "string", description: "The updated name of the incident" },
-      status: { type: "string", description: "The updated status of the incident" },
-      impact: { type: "string", description: "The updated impact of the incident" },
-      message: { type: "string", description: "The update message" },
-      components: { 
-        type: "array", 
-        description: "Components affected by the incident",
-        items: {
-          type: "object",
-          properties: {
-            id: { type: "string", description: "Component ID" },
-            status: { type: "string", description: "Component status" }
-          }
-        }
-      },
-      notify: { type: "boolean", description: "Whether to send notifications" }
-    },
-    required: ["id"]
   }
-});
+);
 
-server.registerTool({
-  name: "get-incident",
-  description: "Get details of an existing status page incident",
-  callback: async (params: any) => {
+server.tool(
+  "get-incident",
+  "Get details of an existing status page incident",
+  {
+    id: z.string().describe("The ID of the incident to retrieve")
+  },
+  async (params: any) => {
     console.log("Getting incident with params:", params);
     try {
       const incident = await getIncident(params.id);
@@ -423,20 +408,17 @@ server.registerTool({
         isError: true
       };
     }
-  },
-  paramsSchema: {
-    type: "object",
-    properties: {
-      id: { type: "string", description: "The ID of the incident to retrieve" }
-    },
-    required: ["id"]
   }
-});
+);
 
-server.registerTool({
-  name: "list-incidents",
-  description: "List status page incidents with optional filtering",
-  callback: async (params: any) => {
+server.tool(
+  "list-incidents",
+  "List status page incidents with optional filtering",
+  {
+    status: z.string().optional().describe("Filter by status"),
+    limit: z.number().optional().describe("Maximum number of incidents to return")
+  },
+  async (params: any) => {
     console.log("Listing incidents with params:", params);
     try {
       const incidents = await listIncidents(params);
@@ -473,20 +455,16 @@ server.registerTool({
         isError: true
       };
     }
-  },
-  paramsSchema: {
-    type: "object",
-    properties: {
-      status: { type: "string", description: "Filter by status" },
-      limit: { type: "number", description: "Maximum number of incidents to return" }
-    }
   }
-});
+);
 
-server.registerTool({
-  name: "list-components",
-  description: "List available StatusPage components",
-  callback: async () => {
+server.tool(
+  "list-components",
+  "List available StatusPage components",
+  {
+    dummy: z.string().optional().describe("Dummy parameter (not used)")
+  },
+  async () => {
     console.log("Listing components");
     try {
       const components = await listComponents();
@@ -524,7 +502,7 @@ server.registerTool({
       };
     }
   }
-});
+);
 
 console.log("Tools registered:", Object.keys((server as any)._registeredTools || {}));
 
