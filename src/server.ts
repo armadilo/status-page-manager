@@ -39,12 +39,22 @@ app.get('/mcp', (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   
-  // Send an initial message
-  res.write('data: {"type":"connection_established"}\n\n');
+  // Send an initial message with proper JSON-RPC format
+  const initialMessage = {
+    jsonrpc: "2.0",
+    method: "mcp.connection_established",
+    params: {}
+  };
+  res.write(`data: ${JSON.stringify(initialMessage)}\n\n`);
   
   // Keep the connection alive with a ping every 30 seconds
   const pingInterval = setInterval(() => {
-    res.write('data: {"type":"ping"}\n\n');
+    const pingMessage = {
+      jsonrpc: "2.0",
+      method: "mcp.ping",
+      params: { timestamp: new Date().toISOString() }
+    };
+    res.write(`data: ${JSON.stringify(pingMessage)}\n\n`);
   }, 30000);
   
   // Clean up when client disconnects
