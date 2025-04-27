@@ -157,10 +157,49 @@ app.post('/mcp', async (req: Request, res: Response) => {
       const tools = (server as any)._registeredTools || {};
       const formattedTools = Object.keys(tools).map(name => {
         const tool = tools[name];
+        
+        // Create a schema in JSON Schema format from the Zod schema if available
+        let parameters: any = {};
+        try {
+          if (tool.schema) {
+            // Extract parameter schema from the tool object
+            parameters = {
+              type: "object",
+              properties: {},
+              required: []
+            };
+            
+            // Try to extract info from the zod schema if available
+            // This is a best-effort conversion
+            for (const param in tool.schema) {
+              if (tool.schema[param]._def) {
+                const paramDef = tool.schema[param]._def;
+                const isRequired = !paramDef.isOptional;
+                const description = paramDef.description || '';
+                
+                // Add to properties
+                parameters.properties[param] = {
+                  type: paramDef.typeName === 'ZodString' ? 'string' : 
+                        paramDef.typeName === 'ZodNumber' ? 'number' :
+                        paramDef.typeName === 'ZodBoolean' ? 'boolean' : 'object',
+                  description: description
+                };
+                
+                // Add to required list if needed
+                if (isRequired) {
+                  parameters.required.push(param);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`Failed to extract schema for tool ${name}:`, e);
+        }
+        
         return {
           name,
           description: tool.description || '',
-          parameters: tool.paramsSchema || {}
+          parameters: parameters
         };
       });
       
