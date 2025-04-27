@@ -1,5 +1,5 @@
 {
-  "status-page-manager-remote": {
+  "status-page-manager": {
     "url": "https://warm-forest-87740-7343ecfc8c2d.herokuapp.com/mcp",
     "description": "Create and manage status page incidents",
     "headers": {

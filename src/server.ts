@@ -30,6 +30,30 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
+// Add SSE support for Cursor MCP connection
+app.get('/mcp', (req: Request, res: Response) => {
+  console.log('Received SSE connection request from Cursor');
+  
+  // Set headers for SSE
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  
+  // Send an initial message
+  res.write('data: {"type":"connection_established"}\n\n');
+  
+  // Keep the connection alive with a ping every 30 seconds
+  const pingInterval = setInterval(() => {
+    res.write('data: {"type":"ping"}\n\n');
+  }, 30000);
+  
+  // Clean up when client disconnects
+  req.on('close', () => {
+    console.log('SSE connection closed');
+    clearInterval(pingInterval);
+  });
+});
+
 // Handle MCP requests
 app.post('/mcp', async (req: Request, res: Response) => {
   try {
